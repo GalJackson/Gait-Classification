@@ -101,9 +101,9 @@ def resize_keypoints(df, n=1, m=1, img_width=1080, img_height=1920):
     
     df_resized = df.copy()
     
-    for col in df.columns: # for each keypoint extracted from the pose 
-        if '_x' in col:
-            keypoint = col[:-2]  
+    for column in df.columns: # for each keypoint extracted from the pose 
+        if '_x' in column:
+            keypoint = column[:-2]  
             x_col = f'{keypoint}_x'
             y_col = f'{keypoint}_y'
             
@@ -113,6 +113,20 @@ def resize_keypoints(df, n=1, m=1, img_width=1080, img_height=1920):
     
     return df_resized
 
+
+def mirror_keypoints(df, img_width):
+    """
+    flip keypoints horizontally (mirror across the y axis)
+    """
+    
+    df_flipped = df.copy()
+    
+    for column in df.columns:
+        if '_x' in column:
+            # flip the x coordinate by subtracting it from the image width
+            df_flipped[column] = img_width - df[column]
+    
+    return df_flipped
 
 
 
