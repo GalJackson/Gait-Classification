@@ -170,6 +170,48 @@ def augment_gait_data(parent_dir, output_dir, augmentation_count):
             df_augmented.to_csv(os.path.join(output_dir, augmented_filename))
 
 
+def segment_csv(input_file, output_dir, window_size=5, overlap=2, sf=30):
+    """
+    This function segments a CSV file into smaller CSV files of length window_size, overlapping for a length of overlap
+
+    window_size: in seconds
+    overlap: in seconds
+    sf: in frames per second
+    """
+
+    # calculating window length in terms of video frames
+    window_len = window_size * sf
+    overlap_len = overlap * sf
+
+    df = pd.read_csv(input_file, index_col=0)
+    input_filename = os.path.splitext(os.path.basename(input_file))[0]
+
+    start_frame = 0
+    segment_count = 1
+
+    while start_frame + window_len <= len(df):
+        # create segment of dataframe
+        end_frame = start_frame + window_len
+        df_segment = df.iloc[start_frame:end_frame]
+
+        # save the segmented section
+        segment_filename = f"{input_filename}-segment-{segment_count}.csv"
+
+        # update the start frame index
+        start_frame += window_len - overlap_len
+        segment_number += 1
+
+    # repeat segmentation process for final segment, ensuring a full window size. A greater overlap than specified may occur
+    if start_frame < len(df):
+        # set the start frame to the position that allows a full final segment
+        start_frame = max(0, len(df) - window_len)
+        
+        df_segment = df.iloc[start_frame:(start_frame + window_len)]
+        
+        # save the final segment
+        segment_filename = f"{input_filename}_segment_{segment_number}.csv"
+        df_segment.to_csv(os.path.join(output_dir, segment_filename))
+
 if __name__ == "__main__":
     tkinter.Tk().withdraw() # prevents an empty tkinter window from appearing
     
