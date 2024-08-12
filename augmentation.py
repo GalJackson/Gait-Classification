@@ -129,6 +129,46 @@ def mirror_keypoints(df, img_width):
     return df_flipped
 
 
+def augment_df(df):
+    df_augmented = df.copy()
+
+    # random rotation between -5 and 5 degrees
+    angle = np.random.uniform(-10, 10)
+    df_augmented = rotate_keypoints(df_augmented, angle, img_width=1920, img_height=1080)
+
+    # randomly choose if to flip video horizontally
+    if np.random.rand() > 0.5:
+        df_augmented = mirror_keypoints(df_augmented, img_width=1920)
+
+    # random rescaling on x and y axis between 0.8 and 1.2
+    scale_x = np.random.uniform(0.8, 1.2)
+    scale_y = np.random.uniform(0.8, 1.2)
+    df_augmented = resize_keypoints(df_augmented, scale_x, scale_y, img_width=1920, img_height=1080)
+
+    return df_augmented
+
+
+def augment_gait_data(parent_dir, output_dir, augmentation_count):
+    """
+    This function performs various randomised augmentation operations to files in a given directory. Each augmentation will
+    result in a new CSV file which will be saved under output_dir.
+
+    parent_dir: path to the directory of existing CSV files
+    output_dir: where the new augmented CSV files will be saved
+    augmentation_count: number of augmentations per CSV file
+    """
+
+    # all CSV files in the parent directory
+    csv_files = [f for f in os.listdir(parent_dir) if f.endswith('.csv')]
+
+    for csv in csv_files:
+        df = pd.read_csv(os.path.join(parent_dir, csv))
+
+        for i in range(augmentation_count):
+            df_augmented = augment_df(df)
+            augmented_filename = f"{csv.split('.')[0]}-augmented-{i}.csv"
+            df_augmented.to_csv(os.path.join(output_dir, augmented_filename))
+
 
 if __name__ == "__main__":
     tkinter.Tk().withdraw() # prevents an empty tkinter window from appearing
