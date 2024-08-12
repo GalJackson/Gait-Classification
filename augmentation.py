@@ -87,6 +87,33 @@ def rotate_keypoints(df, angle, img_width, img_height):
     return df_rotated
 
 
+def resize_keypoints(df, n=1, m=1, img_width=1080, img_height=1920):
+    """
+    Resize keypoints via vertical and horizontal stretch or compression
+
+    n: x-axis stretch factor
+    m: y-axis stretch factor
+    """
+
+    # find center point of the video frame
+    center_x = img_width / 2
+    center_y = img_height / 2
+    
+    df_resized = df.copy()
+    
+    for col in df.columns: # for each keypoint extracted from the pose 
+        if '_x' in col:
+            keypoint = col[:-2]  
+            x_col = f'{keypoint}_x'
+            y_col = f'{keypoint}_y'
+            
+            # apply resizing: first translated relative to center, then scaled, and then translated back
+            df_resized[x_col] = (df[x_col] - center_x) * n + center_x
+            df_resized[y_col] = (df[y_col] - center_y) * m + center_y
+    
+    return df_resized
+
+
 
 
 if __name__ == "__main__":
