@@ -1,6 +1,8 @@
 import pandas as pd
 import cv2
 import numpy as np
+import tkinter
+from tkinter import filedialog
 
 
 def draw_keypoints(frame, keypoints):
@@ -19,28 +21,59 @@ def draw_keypoints(frame, keypoints):
 
     return frame
 
-# set the size of the background
-frame_width = 1080
-frame_height = 1920
 
-keypoints_df = pd.read_csv('test.csv', index_col=0)
+def read_data():
+    """
+    Prompts user to select file, then loads into a dataframe
+    """
 
-# iterate over each frame
-for frame_i in range(len(keypoints_df)):
-    # create a white background image
-    frame = np.ones((frame_height, frame_width, 3), dtype=np.uint8) * 255
+    tkinter.Tk().withdraw() # prevents an empty tkinter window from appearing
+    file_path = filedialog.askopenfile()
 
-    # extract keypoints for the current frame
-    keypoints = keypoints_df.iloc[frame_i].values
+    df = pd.read_csv(file_path, index_col=0)
 
-    # draw keypoints on the white background
-    frame_with_keypoints = draw_keypoints(frame, keypoints)
-    cv2.imshow('Keypoints', frame_with_keypoints)
-    
-    # display at 30 frames per second, exit if 'q' is pressed
-    if cv2.waitKey(int(1000 / 30)) & 0xFF == ord('q'):
-        break
+    return df
 
-cv2.destroyAllWindows()
 
-print("Keypoints display complete")
+def simulate_data(df, frame_height, frame_width):
+    """
+    Takes a dataframe of keypoints and simulates their movement in a new window
+    """
+
+    # iterate over each frame
+    for frame_i in range(len(df)):
+        # if frame_i >= 85:
+        #     print("pause")
+
+        # create a white background image
+        frame = np.ones((frame_height, frame_width, 3), dtype=np.uint8) * 255
+
+        # extract keypoints for the current frame
+        keypoints = df.iloc[frame_i].values
+
+        # draw keypoints on the white background
+        frame_with_keypoints = draw_keypoints(frame, keypoints)
+        cv2.imshow('Keypoints', frame_with_keypoints)
+        
+        # display at 30 frames per second, exit if 'q' is pressed
+        if cv2.waitKey(int(1000 / 30)) & 0xFF == ord('q'):
+            break
+
+    cv2.destroyAllWindows()
+    print("Keypoints display complete")
+
+
+def main():
+    # set the size of the background
+    frame_width = 1080
+    frame_height = 1920
+
+    # load video to df
+    keypoints_df = read_data()
+
+    # simulate the keypoint movement
+    simulate_data(keypoints_df, frame_height, frame_width)
+
+
+if __name__ == "__main__":
+    main()
