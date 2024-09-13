@@ -1,52 +1,104 @@
 import pandas as pd
 from ultralytics import YOLO
+import numpy as np
 
-video_name = "OAW06-top-front3.mp4"
-video_path = "../Videos/Cropped/OAW06/" + video_name
-output_path = "../Pose-Extractions/" + video_name[:-4] + ".csv"
+def extract_keypoints(results, direction):
+    """ 
+    Prepare results from keypoint extraction for CSV export
+    Extracts keypoints for either the leftmost or rightmost person based on the user input
+    """
+    kps_series = []
+    right_hip_index = 11  # index for RHip
+    left_hip_index = 12   # index for LHip
 
-# Load a Pose Extraction model
-model = YOLO("yolov8n-pose.pt") 
+    for frame in results:
+        if frame.keypoints.has_visible:
+            # get keypoints and confidence scores
+            kps_all = frame.keypoints.xy  
+            conf_all = frame.keypoints.conf  
+            
+            # decide if we should track the leftmost or rightmost person
+            if direction == "right":
+                # find the person with the most rightward 'RHip'
+                extreme_x = -float('inf')
+                selected_index = -1
+                for i in range(len(kps_all)):
+                    hip_x = kps_all[i][right_hip_index][0]
+                    if hip_x > extreme_x:
+                        extreme_x = hip_x
+                        selected_index = i
+            else:
+                # find the person with the most leftward 'LHip'
+                extreme_x = float('inf')
+                selected_index = -1
+                for i in range(len(kps_all)):
+                    hip_x = kps_all[i][left_hip_index][0]
+                    if hip_x < extreme_x:
+                        extreme_x = hip_x
+                        selected_index = i
+            
+            # get keypoints for the selected person
+            kps = kps_all[selected_index]
+            conf = conf_all[selected_index]
+            
+            row = []
+            for i in range(len(kps)):
+                row.append(list(kps[i]) + [conf[i]])
 
-# Predict with the model
-results = model(video_path)
+            # flatten row
+            row = [float(i) for sublist in row for i in sublist]
+        else:
+            # NaN if no keypoints are found
+            row = [float('nan')] * 51
 
-# Prepare results for export to CSV
-kps_series = []
-
-for frame in results:
-    if frame.keypoints.has_visible:
-        # x and y position of each keypoint (in pixels from top left)
-        kps = frame.keypoints.xy[0]
-
-        # keypoint confidence score
-        conf = frame.keypoints.conf[0]
-
-        row = []
-
-        for i in range(0, len(kps)):
-            row.append(list(kps[i]) + [conf[i]])
-
-        # Flatten the row
-        row = [float(i) for sublist in row for i in sublist]
+        kps_series.append(row)
     
-    else:
-        row = [float('nan')] * 51
+    return kps_series
 
+def create_dataframe(keypoints_series):
+    # headers for df columns
+    header = []
+    keypoint_names = ["Nose", "LEye", "REye", "LEar", "REar", "LShoulder", "RShoulder", "LElbow", "RElbow", 
+                      "LWrist", "RWrist", "LHip", "RHip", "LKnee", "RKnee", "LAnkle", "RAnkle"]
+    for name in keypoint_names:
+        header.extend([f"{name}_x", f"{name}_y", f"{name}_conf"])
     
-    kps_series.append(row)
+    # create keypoint df
+    return pd.DataFrame(keypoints_series, columns=header)
 
-header = []
-keypoint_names = ["Nose", "LEye", "REye", "LEar", "REar", "LShoulder", "RShoulder", "LElbow", "RElbow", "LWrist", "RWrist", "LHip", "RHip", "LKnee", "RKnee", "LAnkle", "RAnkle"]
-for name in keypoint_names:
-    header.extend([f"{name}_x", f"{name}_y", f"{name}_conf"])
+def save_to_csv(df, output_path):
+    # export df to CSV
+    df.to_csv(output_path, index=False)
+    print(f"Pose extraction complete. The CSV is at {output_path}")
 
-# Pandas DataFrame for the keypoints
-df = pd.DataFrame(kps_series, columns=header)
+def main():
+    video_name = "OAW01-bottom-front2.mp4"
+    video_path = f"../Videos/Cropped/{video_name[:5]}/" + video_name
+    output_path = "yolo_exports/" + video_name[:-4] + ".csv"
+    model_path = "yolov8n-pose.pt"
+    
+    # ask the user for which person to track - "left" or "right"
+    while True:
+        direction = input("Do you want to track the person who is most to the 'left' or 'right'? (Enter 'left' or 'right'): ").strip().lower()
+        if direction in ['left', 'right']:
+            break
+        else:
+            print("Invalid input. Please enter 'left' or 'right'.")
 
+    # load yolo model
+    model = YOLO(model_path) 
+    
+    # get results
+    results = model(video_path, stream=True)
+    
+    # extract keypoints
+    keypoints_series = extract_keypoints(results, direction)
+    
+    # create df from keypoints
+    df = create_dataframe(keypoints_series)
+    
+    # save df to csv
+    save_to_csv(df, output_path)
 
-# export DF to CSV
-df.to_csv(output_path)
-
-print("Pose extraction complete. The CSV can be found at " + output_path)
-
+if __name__ == "__main__":
+    main()
