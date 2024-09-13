@@ -1,3 +1,6 @@
 runs
 .ipynb_checkpoints
 temp_images
+*.csv
+detectron2
+.vscode
