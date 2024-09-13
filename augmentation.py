@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import tkinter
 from tkinter import filedialog
+from tqdm import tqdm
 
 def flip_video(directory_path, file_name): 
     # video file paths
@@ -129,21 +130,66 @@ def mirror_keypoints(df, img_width):
     return df_flipped
 
 
+def segment_csv(df, input_filename, output_dir, window_size=5, overlap=2, sf=30):
+    """
+    This function segments a df into smaller CSV files of length window_size, overlapping for a length of overlap
+
+    window_size: in seconds
+    overlap: in seconds
+    sf: in frames per second
+    """
+
+    # calculating window length in terms of video frames
+    window_len = window_size * sf
+    overlap_len = overlap * sf
+
+    # df = pd.read_csv(input_file, index_col=0)
+    # input_filename = os.path.splitext(os.path.basename(input_file))[0]
+
+    start_frame = 0
+    segment_count = 1
+
+    while start_frame + window_len <= len(df):
+        # create segment of dataframe
+        end_frame = start_frame + window_len
+        df_segment = df.iloc[start_frame:end_frame]
+
+        # save the segmented section
+        segment_filename = f"{input_filename}-segment-{segment_count}.csv"
+        df_segment.to_csv(os.path.join(output_dir, segment_filename), index=False)
+
+        # update the start frame index
+        start_frame += window_len - overlap_len
+        segment_count += 1
+
+    # repeat segmentation process for final segment, ensuring a full window size. A greater overlap than specified may occur
+    if start_frame < len(df):
+        # set the start frame to the position that allows a full final segment
+        start_frame = max(0, len(df) - window_len)
+        
+        df_segment = df.iloc[start_frame:(start_frame + window_len)]
+        
+        # save the final segment
+        segment_filename = f"{input_filename}-segment-{segment_count}.csv"
+        df_segment.to_csv(os.path.join(output_dir, segment_filename), index=False)
+
+
 def augment_df(df):
     df_augmented = df.copy()
 
     # random rotation between -5 and 5 degrees
-    angle = np.random.uniform(-10, 10)
-    df_augmented = rotate_keypoints(df_augmented, angle, img_width=1920, img_height=1080)
+    angle = np.random.uniform(-5, 5)
+    df_augmented = rotate_keypoints(df_augmented, angle, img_width=1080, img_height=1920)
 
     # randomly choose if to flip video horizontally
     if np.random.rand() > 0.5:
-        df_augmented = mirror_keypoints(df_augmented, img_width=1920)
+        df_augmented = mirror_keypoints(df_augmented, img_width=1080)
 
     # random rescaling on x and y axis between 0.8 and 1.2
     scale_x = np.random.uniform(0.8, 1.2)
     scale_y = np.random.uniform(0.8, 1.2)
-    df_augmented = resize_keypoints(df_augmented, scale_x, scale_y, img_width=1920, img_height=1080)
+    df_augmented = resize_keypoints(df_augmented, scale_x, scale_y, img_width=1080, img_height=1920)
+
 
     return df_augmented
 
@@ -161,74 +207,31 @@ def augment_gait_data(parent_dir, output_dir, augmentation_count):
     # all CSV files in the parent directory
     csv_files = [f for f in os.listdir(parent_dir) if f.endswith('.csv')]
 
-    for csv in csv_files:
+    for csv in tqdm(csv_files, desc="Preprocessing CSV files"):
         df = pd.read_csv(os.path.join(parent_dir, csv))
 
         for i in range(augmentation_count):
+            # augment the dataframe
             df_augmented = augment_df(df)
-            augmented_filename = f"{csv.split('.')[0]}-augmented-{i}.csv"
-            df_augmented.to_csv(os.path.join(output_dir, augmented_filename))
+
+            # save augmented dataframe as csv
+            augmented_filename = f"{csv.split('.')[0]}-augmented-{1+i}"
+            segment_csv(df_augmented, augmented_filename, output_dir, window_size=5, overlap=1)
+            
+        print(f"Augmentation for {csv} complete")
 
 
-def segment_csv(input_file, output_dir, window_size=5, overlap=2, sf=30):
-    """
-    This function segments a CSV file into smaller CSV files of length window_size, overlapping for a length of overlap
+def main():
+    tkinter.Tk().withdraw() # prevents an empty tkinter window from appearing
 
-    window_size: in seconds
-    overlap: in seconds
-    sf: in frames per second
-    """
+    # prompt to choose input and output directories
+    dir_path = filedialog.askdirectory(title="Select input directory")
+    output_path = filedialog.askdirectory(title="Select output directory")
 
-    # calculating window length in terms of video frames
-    window_len = window_size * sf
-    overlap_len = overlap * sf
+    # augment all files in input directory
+    aug_no = 5 # number of augmented files to generate per input file
+    augment_gait_data(dir_path, output_path, aug_no)
 
-    df = pd.read_csv(input_file, index_col=0)
-    input_filename = os.path.splitext(os.path.basename(input_file))[0]
-
-    start_frame = 0
-    segment_count = 1
-
-    while start_frame + window_len <= len(df):
-        # create segment of dataframe
-        end_frame = start_frame + window_len
-        df_segment = df.iloc[start_frame:end_frame]
-
-        # save the segmented section
-        segment_filename = f"{input_filename}-segment-{segment_count}.csv"
-
-        # update the start frame index
-        start_frame += window_len - overlap_len
-        segment_number += 1
-
-    # repeat segmentation process for final segment, ensuring a full window size. A greater overlap than specified may occur
-    if start_frame < len(df):
-        # set the start frame to the position that allows a full final segment
-        start_frame = max(0, len(df) - window_len)
-        
-        df_segment = df.iloc[start_frame:(start_frame + window_len)]
-        
-        # save the final segment
-        segment_filename = f"{input_filename}_segment_{segment_number}.csv"
-        df_segment.to_csv(os.path.join(output_dir, segment_filename))
 
 if __name__ == "__main__":
-    tkinter.Tk().withdraw() # prevents an empty tkinter window from appearing
-    
-    # directory_path = filedialog.askdirectory()
-    # directory = os.fsencode(directory_path)
-    
-    # for file in os.listdir(directory):
-    #     filename = os.fsdecode(file)
-    #     if not filename.endswith("mirror.mp4"): # skip any videos already mirrored
-    #         flip_video(directory_path, filename)
-    #     else:
-    #         continue
-
-    filename = filedialog.askopenfilename()
-
-    df = pd.read_csv(filename, index_col=0)
-
-    df = rotate_keypoints(df, 5, 1080, 1920)
-
-    df.to_csv('test.csv')
+    main()
